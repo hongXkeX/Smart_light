@@ -1,0 +1,266 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              01/01/2017 20:09:52 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\obj\main.obj
+COMPILER INVOKED BY: F:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\obj\main.lst)
+                    - OBJECT(.\obj\main.obj)
+
+line level    source
+
+   1          /*-----------------------------------------------
+   2            名称：IIC协议 PCF8591 AD/DA转换 测试光敏电阻
+   3            修改：无
+   4            内容：使用4路AD中的1路检测外部模拟量输入，显示0-255数值
+   5          ------------------------------------------------*/  
+   6          #include <reg52.h>                
+   7          #include "i2c.h"
+   8          #include "delay.h"
+   9          #include "display.h"
+  10          
+  11          #define AddWr 0x90   //写数据地址 
+  12          #define AddRd 0x91   //读数据地址
+  13          
+  14          #define uint unsigned int
+  15          #define uchar unsigned char   
+  16          
+  17          uchar num=0;
+  18          
+  19          sbit ir=P3^2;  
+  20          
+  21          bit irok;
+  22          bit irprosok;
+  23          bit startflag = 0;
+  24          uchar irtime;
+  25          uchar bitnum;
+  26          uchar ircode[4];
+  27          uchar irdata[33];
+  28          
+  29          sbit p20 = P2^0;
+  30          sbit p21 = P2^1;
+  31          
+  32          extern bit ack;
+  33          unsigned char ReadADC(unsigned char Chl);
+  34          bit WriteDAC(unsigned char dat);
+  35          
+  36          void int0init()  //外部中断0初始化
+  37          {
+  38   1              IT0 = 1;   //指定外部中断0下降沿触发，INT0 (P3.2)
+  39   1              EA = 1;    //开总中断
+  40   1              EX0 = 1;   //使能外部中断
+  41   1      }
+  42          
+  43          void timer1init()//定时器0初始化 256*(1/12m)*12=0.256ms
+  44          {
+  45   1              TMOD |= 0x20;//定时器0工作方式2，TH0是重装值，TL0是初值
+  46   1              TH1 = 0x00; //重载值
+  47   1              TL1 = 0x00; //初始化值
+  48   1              EA = 1;
+  49   1              ET1 = 1;    //开中断
+  50   1              TR1 = 1;    
+  51   1      }
+  52          
+  53          /*------------------------------------------------
+  54                        红外码值处理函数  
+C51 COMPILER V9.56.0.0   MAIN                                                              01/01/2017 20:09:52 PAGE 2   
+
+  55                    从低位开始处理        完成每次的ircode[4]             
+  56          ------------------------------------------------*/
+  57          void ir_pros()                  // 红外码值处理
+  58          {
+  59   1              uchar mun,k,i,j;
+  60   1              k=1;
+  61   1              for(j=0; j<4; j++)
+  62   1              {
+  63   2                      for(i=0; i<8; i++)
+  64   2                      {
+  65   3                              mun = mun >> 1;
+  66   3                              if(irdata[k] > 6)
+  67   3                              {
+  68   4                                      mun = mun | 0x80;
+  69   4                              }
+  70   3                              k++;
+  71   3                      }
+  72   2                      ircode[j] = mun;
+  73   2                      mun = 0;
+  74   2              }
+  75   1              irprosok = 1;
+  76   1      }
+  77          
+  78          /*------------------------------------------------
+  79                        红外键值处理函数  
+  80                     依据ircode[2]    显示相应的序号            
+  81          ------------------------------------------------*/
+  82          void ir_work()                                                  // 红外键值处理
+  83          {
+  84   1              if( ircode[2] == 0x0c ) {
+  85   2                      TempData[5]=dofly_DuanMa[1]; 
+  86   2              } 
+  87   1              if( ircode[2] == 0x18 ) {         // 2 手动模式 关灯
+  88   2                      TempData[5]=dofly_DuanMa[2]; 
+  89   2                      led0 = 1;
+  90   2                      led7 = 1;
+  91   2                      led6 = 0;
+  92   2                      led5 = 1;
+  93   2              }
+  94   1              if( ircode[2] == 0x5e ) {         // 2 手动模式 开灯 
+  95   2                      TempData[5]=dofly_DuanMa[3];
+  96   2                      led0 = 0;
+  97   2                      led7 = 1;
+  98   2                      led6 = 0;
+  99   2                      led5 = 1;
+ 100   2              }
+ 101   1              if( ircode[2] == 0x08 ) {
+ 102   2                      TempData[5]=dofly_DuanMa[4];
+ 103   2                      led7 = 1;
+ 104   2                      led6 = 1;
+ 105   2                      led5 = 0;
+ 106   2              }
+ 107   1              if( ircode[2] == 0x1c ) {
+ 108   2                      TempData[5]=dofly_DuanMa[5];
+ 109   2              }
+ 110   1              if( ircode[2] == 0x5a ) {
+ 111   2                      TempData[5]=dofly_DuanMa[6];
+ 112   2              }
+ 113   1              if( ircode[2] == 0x42 ) {
+ 114   2                      TempData[5]=dofly_DuanMa[7];
+ 115   2              }
+ 116   1              if( ircode[2] == 0x52 ) {
+C51 COMPILER V9.56.0.0   MAIN                                                              01/01/2017 20:09:52 PAGE 3   
+
+ 117   2                      TempData[5]=dofly_DuanMa[8];
+ 118   2              }
+ 119   1              if( ircode[2] == 0x4a ) {
+ 120   2                      TempData[5]=dofly_DuanMa[9];
+ 121   2              }
+ 122   1              
+ 123   1      }
+ 124          
+ 125          /*------------------------------------------------
+ 126                        主程序
+ 127          ------------------------------------------------*/
+ 128          main()
+ 129          {
+ 130   1              Init_Timer0();
+ 131   1              int0init();    // 外部中断初始化
+ 132   1              timer1init();  // 定时器1初始化
+ 133   1              
+ 134   1              TempData[5]=dofly_DuanMa[0];
+ 135   1      
+ 136   1              while (1)         //主循环
+ 137   1              {
+ 138   2                      num = 255 - ReadADC(3);  //值取差值，用于显示光强越小，数值越小
+ 139   2                      if(irok == 1)            //如果红外编码接收好了
+ 140   2                  {                             
+ 141   3                              irok = 0;
+ 142   3                      ir_pros();           //进行红外码值处理
+ 143   3                  }
+ 144   2                      if(irprosok == 1)        //如果红外码值处理好后,
+ 145   2                  {
+ 146   3                              irprosok = 0;           
+ 147   3                      ir_work();           //进行工作处理。
+ 148   3                      }
+ 149   2                      
+ 150   2                      if( ircode[2] == 0x0c ) {   // 1 自动模式
+ 151   3                              led7 = 0;
+ 152   3                              led5 = 1;
+ 153   3                              led6 = 1;
+ 154   3                              if( num < 80 ) {
+ 155   4                                      led0 = 0;
+ 156   4                              }
+ 157   3                              if( num > 80 ) {
+ 158   4                                      led0 = 1;
+ 159   4                              }
+ 160   3                              TempData[5]=dofly_DuanMa[1]; 
+ 161   3                      }
+ 162   2      
+ 163   2                      if( ircode[2] == 0x08 ) {   // 4 语音模式
+ 164   3                              if ( led4 == 0 ) {
+ 165   4                                      led0 = 0;
+ 166   4                              }
+ 167   3                              if ( led4 == 1 ) {
+ 168   4                                      led0 = 1;
+ 169   4                              }
+ 170   3                      }
+ 171   2                      
+ 172   2                      TempData[0]=dofly_DuanMa[num/100];    
+ 173   2                      TempData[1]=dofly_DuanMa[(num%100)/10];
+ 174   2                      TempData[2]=dofly_DuanMa[(num%100)%10];
+ 175   2                      //主循环中添加其他需要一直工作的程序
+ 176   2                      DelayMs(100);
+ 177   2              }
+ 178   1      }
+C51 COMPILER V9.56.0.0   MAIN                                                              01/01/2017 20:09:52 PAGE 4   
+
+ 179          /*------------------------------------------------
+ 180                       读AD转值程序
+ 181          输入参数 Chl 表示需要转换的通道，范围从0-3
+ 182          返回值范围0-255
+ 183          ------------------------------------------------*/
+ 184          unsigned char ReadADC(unsigned char Chl)
+ 185           {
+ 186   1         unsigned char Val;
+ 187   1         Start_I2c();               //启动总线
+ 188   1         SendByte(AddWr);             //发送器件地址
+ 189   1           if(ack==0)return(0);
+ 190   1         SendByte(0x40|Chl);            //发送器件子地址
+ 191   1           if(ack==0)return(0);
+ 192   1         Start_I2c();
+ 193   1         SendByte(AddWr+1);
+ 194   1            if(ack==0)return(0);
+ 195   1         Val=RcvByte();
+ 196   1         NoAck_I2c();                 //发送非应位
+ 197   1         Stop_I2c();                  //结束总线
+ 198   1        return(Val);
+ 199   1       }
+ 200           
+ 201          /*------------------------------------------------
+ 202                 外部中断0   完成存储一次数据的每位
+ 203          ------------------------------------------------*/
+ 204          void int0() interrupt 0   //外部中断0服务函数
+ 205          {
+ 206   1              if(startflag)
+ 207   1              {
+ 208   2                      if(irtime>29 && irtime<58)  //8-16ms
+ 209   2                      {
+ 210   3                              bitnum = 0;
+ 211   3                      }
+ 212   2                      irdata[bitnum] = irtime;
+ 213   2                      irtime = 0;
+ 214   2                      bitnum++;
+ 215   2                      if(bitnum == 33)
+ 216   2                      {
+ 217   3                              bitnum=0;
+ 218   3                              irok=1;
+ 219   3                      }
+ 220   2              }
+ 221   1              else
+ 222   1              {
+ 223   2                      irtime = 0;
+ 224   2                      startflag = 1;
+ 225   2              }
+ 226   1      }
+ 227          
+ 228          /*------------------------------------------------
+ 229                    定时器中断0   完成较准确计时
+ 230          ------------------------------------------------*/  
+ 231          void time1 () interrupt 3                 //定时器0中断服务函数
+ 232          {
+ 233   1              irtime++;                                     //用于计数2个下降沿之间的时间
+ 234   1      }  
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    460    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+C51 COMPILER V9.56.0.0   MAIN                                                              01/01/2017 20:09:52 PAGE 5   
+
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     40       2
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      3    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

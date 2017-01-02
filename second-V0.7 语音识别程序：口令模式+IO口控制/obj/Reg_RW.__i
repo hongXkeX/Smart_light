@@ -1,0 +1,1 @@
+"..\code\Reg_RW.c" OPTIMIZE (8,SPEED) BROWSE INCDIR(..\code;..\user) DEBUG OBJECTEXTEND PRINT(.\Reg_RW.lst) OBJECT(..\obj\Reg_RW.obj)

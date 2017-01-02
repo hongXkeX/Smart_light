@@ -1,0 +1,1 @@
+"..\user\usart.c" OPTIMIZE (8,SPEED) BROWSE INCDIR(..\code;..\user) DEBUG OBJECTEXTEND PRINT(.\usart.lst) OBJECT(..\obj\usart.obj)

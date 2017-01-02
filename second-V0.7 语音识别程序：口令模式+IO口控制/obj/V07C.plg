@@ -1,0 +1,17 @@
+<html>
+<body>
+<pre>
+<h1>礦ision Build Log</h1>
+<h2>Project:</h2>
+E:\资料珍藏\TB文件保存\产品开发原始资料保存\YS-V0.7一体化语音识别模块\YS-V0.7驱动程序\STC11系列程序\V0.7 语音识别程序：口令模式+IO口控制\keil4 APP\YS-V0.7.uvproj
+Project File Date:  09/13/2013
+
+<h2>Output:</h2>
+compiling main.c...
+..\code\main.c - 0 Error(s), 0 Warning(s).
+Build target 'YS-V0.7口令模式工程+IO控制'
+compiling usart.c...
+linking...
+Program Size: data=32.0 xdata=0 code=2466
+creating hex file from "..\obj\V07C"...
+"..\obj\V07C" - 0 Error(s), 0 Warning(s).
